@@ -154,35 +154,21 @@ app.post("/login", async (req, res) => {
   }
 })
 
-/**
- * Get QRIS Transaction
- * POST /qris/detail
- */
-// GET QRIS DETAIL
-// Example:
-// /qris/detail?username=danzzscr&authToken=TOKEN&id=226688476
-
 app.get("/qris/detail", async (req, res) => {
   try {
-    const {
-      username,
-      authToken,
-      id
-    } = req.query
+    const { username, authToken } = req.query
 
-    if (!username || !authToken || !id) {
+    if (!username || !authToken) {
       return res.status(400).json({
         status: false,
-        message: "username, authToken & id required"
+        message: "username & authToken required"
       })
     }
 
-    const client = new OrderKuota(
-      username,
-      authToken
-    )
+    const client = new OrderKuota(username, authToken)
 
-    const result = await client.getTransactionQris(id)
+    // Ambil semua data
+    const result = await client.getTransactionQris()
 
     res.json(result)
   } catch (err) {
