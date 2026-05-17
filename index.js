@@ -1,225 +1,123 @@
-// server.js
-// REST API Express OrderKuota
-// ESM Module
-
 import express from "express"
-import crypto from "crypto"
+import axios from "axios"
+import qs from "qs"
 
 const app = express()
 const PORT = 3000
 
-app.use(express.json())
-app.use(express.urlencoded({ extended: true }))
+// Signature tetap
+const signature =
+   "c9920f28a36ea22628e94f1ecc327c454871288947ef9a752b6faf1324fe1bac7c127bc81febcebea6ca47af4c3bc6142010ae06a247b58d9ef581455aa61fef"
 
-class OrderKuota {
-  static API_URL = "https://app.orderkuota.com/api/v2"
-  static HOST = "app.orderkuota.com"
+// Endpoint API
+app.get("/api/qris/mutasi", async (req, res) => {
+   try {
 
-  static USER_AGENT = "okhttp/5.3.2"
-  static APP_VERSION_NAME = "26.02.04"
-  static APP_VERSION_CODE = "260204"
+      // Ambil parameter
+      const username = req.query.username
+      const token = req.query.token
 
-  static PHONE_MODEL = "SM-G960N"
-  static PHONE_UUID = "di309HvATsaiCppl5eDpoc"
-
-  static APP_REG_ID =
-    "di309HvATsaiCppl5eDpoc:APA91bFUcTOH8h2XHdPRz2qQ5Bezn-3_TaycFcJ5pNLGWpmaxheQP9Ri0E56wLHz0_b1vcss55jbRQXZgc9loSfBdNa5nZJZVMlk7GS1JDMGyFUVvpcwXbMDg8tjKGZAurCGR4kDMDRJ"
-
-  constructor(username = "", authToken = "") {
-    this.username = username
-    this.authToken = authToken
-  }
-
-  generateTimestamp() {
-    return Date.now().toString()
-  }
-
-  generateSignature(payload) {
-    return crypto
-      .createHash("sha512")
-      .update(payload)
-      .digest("hex")
-  }
-
-  buildHeaders(signature, timestamp) {
-    return {
-      Host: OrderKuota.HOST,
-      Signature: signature,
-      Timestamp: timestamp,
-      "Content-Type": "application/x-www-form-urlencoded",
-      "Accept-Encoding": "gzip",
-      "User-Agent": OrderKuota.USER_AGENT
-    }
-  }
-
-  async request(endpoint, body = {}) {
-    const timestamp = this.generateTimestamp()
-
-    const payload = new URLSearchParams(body).toString()
-
-    const signature = this.generateSignature(payload)
-
-    const headers = this.buildHeaders(signature, timestamp)
-
-    const response = await fetch(
-      `${OrderKuota.API_URL}${endpoint}`,
-      {
-        method: "POST",
-        headers,
-        body: payload
+      // Validasi
+      if (!username || !token) {
+         return res.status(400).json({
+            status: false,
+            message: "Parameter username dan token wajib diisi"
+         })
       }
-    )
 
-    return await response.json()
-  }
+      // Timestamp baru setiap request
+      const timestamp = Date.now().toString()
 
-  async login(username, password) {
-    return await this.request("/login", {
-      username,
-      password,
-      app_reg_id: OrderKuota.APP_REG_ID,
-      app_version_code: OrderKuota.APP_VERSION_CODE,
-      app_version_name: OrderKuota.APP_VERSION_NAME
-    })
-  }
+      // Body request
+      const body = {
+         "requests[qris_history][keterangan]": "",
+         "requests[0]": "account",
+         "app_version_code": "260204",
+         "requests[qris_history][page]": "1",
+         "auth_token": token,
+         "requests[qris_history][jumlah]": "",
+         "requests[qris_history][dari_tanggal]": "",
+         "phone_android_version": "6.0.1",
+         "request_time": timestamp,
+         "auth_username": username,
+         "phone_model": "SM-G532G",
+         "app_version_name": "26.02.04",
+         "requests[qris_history][ke_tanggal]": "",
+         "phone_uuid": "e8pPDMENQwSvAg0XtLR8sg",
+         "ui_mode": "light",
+         "app_reg_id":
+            "e8pPDMENQwSvAg0XtLR8sg:APA91bGbGb0lkb8NR1FzwaG0VlAeebVVl-sVkIeIwLiuQJFFv5Q90edISFh6kEvOFYf8iv5QqP8-9J5oWMGVmKWSM5vATgPxuSFNn_1MpRaFehnzvhoyDsw"
+      }
 
-  async getTransactionQris(id) {
-    return await this.request("/get", {
-      request_time: this.generateTimestamp(),
-      auth_username: this.username,
+      // Encode body
+      const encodedBody = qs.stringify(body)
 
-      "requests[qris_details][id]": id,
+      // Debug request
+      console.log("\n========== DEBUG REQUEST ==========")
+      console.log("USERNAME :", username)
+      console.log("TOKEN    :", token)
+      console.log("TIMESTAMP:", timestamp)
+      console.log("SIGNATURE:", signature)
+      console.log("BODY:")
+      console.log(encodedBody)
+      console.log("===================================\n")
 
-      phone_model: OrderKuota.PHONE_MODEL,
-      app_version_name: OrderKuota.APP_VERSION_NAME,
-      phone_uuid: OrderKuota.PHONE_UUID,
-      ui_mode: "light",
-      app_version_code: OrderKuota.APP_VERSION_CODE,
-      auth_token: this.authToken,
-      phone_android_version: "6.0.1",
-      app_reg_id: OrderKuota.APP_REG_ID
-    })
-  }
+      // Request ke OrderKuota
+      const response = await axios.post(
+         "https://app.orderkuota.com/api/v2/qris/mutasi/1523980",
+         encodedBody,
+         {
+            headers: {
+               "signature": signature,
+               "timestamp": timestamp,
+               "content-type": "application/x-www-form-urlencoded",
+               "content-length": Buffer.byteLength(encodedBody),
+               "accept-encoding": "gzip",
+               "user-agent": "okhttp/5.3.2"
+            }
+         }
+      )
 
-  async withdrawalQris(amount) {
-    return await this.request("/get", {
-      request_time: this.generateTimestamp(),
-      auth_username: this.username,
+      // Debug response
+      console.log("\n========== RESPONSE ==========")
+      console.log(JSON.stringify(response.data, null, 2))
+      console.log("================================\n")
 
-      "requests[qris_withdraw][amount]": amount,
-
-      phone_model: OrderKuota.PHONE_MODEL,
-      app_version_name: OrderKuota.APP_VERSION_NAME,
-      phone_uuid: OrderKuota.PHONE_UUID,
-      ui_mode: "light",
-      app_version_code: OrderKuota.APP_VERSION_CODE,
-      auth_token: this.authToken,
-      phone_android_version: "6.0.1",
-      app_reg_id: OrderKuota.APP_REG_ID
-    })
-  }
-}
-
-/*
-|--------------------------------------------------------------------------
-| ROUTES
-|--------------------------------------------------------------------------
-*/
-
-/**
- * Login
- * POST /login
- */
-app.post("/login", async (req, res) => {
-  try {
-    const { username, password } = req.body
-
-    if (!username || !password) {
-      return res.status(400).json({
-        status: false,
-        message: "username & password required"
+      // Kirim response
+      res.json({
+         status: true,
+         result: response.data
       })
-    }
 
-    const client = new OrderKuota()
+   } catch (err) {
 
-    const result = await client.login(username, password)
+      console.log("\n========== ERROR ==========")
 
-    res.json(result)
-  } catch (err) {
-    res.status(500).json({
-      status: false,
-      message: err.message
-    })
-  }
+      if (err.response) {
+
+         console.log("STATUS :", err.response.status)
+         console.log("DATA   :")
+         console.log(JSON.stringify(err.response.data, null, 2))
+
+         return res.status(err.response.status).json({
+            status: false,
+            error: err.response.data
+         })
+
+      } else {
+
+         console.log(err.message)
+
+         return res.status(500).json({
+            status: false,
+            message: err.message
+         })
+      }
+
+   }
 })
 
-app.get("/qris/detail", async (req, res) => {
-  try {
-    const { username, authToken } = req.query
-
-    if (!username || !authToken) {
-      return res.status(400).json({
-        status: false,
-        message: "username & authToken required"
-      })
-    }
-
-    const client = new OrderKuota(username, authToken)
-
-    // Ambil semua data
-    const result = await client.getTransactionQris()
-
-    res.json(result)
-  } catch (err) {
-    res.status(500).json({
-      status: false,
-      message: err.message
-    })
-  }
-})
-
-/**
- * Withdraw QRIS
- * POST /qris/withdraw
- */
-app.post("/qris/withdraw", async (req, res) => {
-  try {
-    const {
-      username,
-      authToken,
-      amount
-    } = req.body
-
-    if (!username || !authToken || !amount) {
-      return res.status(400).json({
-        status: false,
-        message: "username, authToken & amount required"
-      })
-    }
-
-    const client = new OrderKuota(
-      username,
-      authToken
-    )
-
-    const result = await client.withdrawalQris(amount)
-
-    res.json(result)
-  } catch (err) {
-    res.status(500).json({
-      status: false,
-      message: err.message
-    })
-  }
-})
-
-/*
-|--------------------------------------------------------------------------
-| START SERVER
-|--------------------------------------------------------------------------
-*/
-
+// Jalankan server
 app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`)
+   console.log(`Server running on port ${PORT}`)
 })
